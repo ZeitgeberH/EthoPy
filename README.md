@@ -166,7 +166,8 @@ sudo dpkg -i panda3d1.11_1.11.0_armhf.deb
 
 Enable pigpio service
 ```bash
-wget https://raw.githubusercontent.com/joan2937/pigpio/master/util/pigpiod.servicesudo cp pigpiod.service /etc/systemd/system
+wget https://raw.githubusercontent.com/joan2937/pigpio/master/util/pigpiod.service
+sudo cp pigpiod.service /etc/systemd/system
 sudo systemctl enable pigpiod.service
 sudo systemctl start pigpiod.service
 ```
