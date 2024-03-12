@@ -158,7 +158,7 @@ cd ~/github/python-multitouch/library
 sudo python3 setup.py install
 ```
 
-Install panda3d version for raspberry pi
+Install panda3d version for raspberry pi (for Python 3.7)
 ```bash
 wget ftp://eflab.org/shared/panda3d1.11_1.11.0_armhf.deb
 sudo dpkg -i panda3d1.11_1.11.0_armhf.deb
