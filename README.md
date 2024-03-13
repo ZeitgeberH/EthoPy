@@ -158,10 +158,17 @@ cd ~/github/python-multitouch/library
 sudo python3 setup.py install
 ```
 
-Install panda3d version for raspberry pi (for Python 3.7)
+Install panda3d version for raspberry pi
+
+**Python 3.7**
 ```bash
 wget ftp://eflab.org/shared/panda3d1.11_1.11.0_armhf.deb
 sudo dpkg -i panda3d1.11_1.11.0_armhf.deb
+```
+
+**Python 3.9**
+```bash
+sudo dpkg -i Panda3d_deb/panda3d1.11_1.11.0_armhf.deb
 ```
 
 Enable pigpio service
