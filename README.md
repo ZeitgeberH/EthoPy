@@ -144,11 +144,13 @@ Install dependent libraries
 ```bash
 sudo apt update
 sudo apt install python-dev libatlas-base-dev build-essential libavformat-dev libavcodec-dev libswscale-dev libsquish-dev libeigen3-dev libopenal-dev libfreetype6-dev zlib1g-dev libx11-dev libjpeg-dev libvorbis-dev libogg-dev libassimp-dev libode-dev libssl-dev libgles2 libgles1 libegl1 -y
+sudo apt-get install -y libhdf5-serial-dev cmake libopenblas-dev
 ```
 
 Install python packages
 ```bash
 sudo pip3 install 'numpy>=1.19.1' pygame==1.9.6 cython pybind11 scipy datajoint omxplayer-wrapper imageio imageio-ffmpeg
+sudo pip3 install h5py
 ```
 
 Install correct multitouch driver for 7" inch raspberry pi screen
