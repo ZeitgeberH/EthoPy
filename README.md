@@ -150,7 +150,7 @@ sudo apt-get install -y libhdf5-serial-dev cmake libopenblas-dev
 Install python packages
 ```bash
 sudo pip3 install 'numpy>=1.19.1' pygame==1.9.6 cython pybind11 scipy datajoint omxplayer-wrapper imageio imageio-ffmpeg
-sudo pip3 install h5py
+sudo pip3 install h5py PyOpenGL PyOpenGL_accelerate
 ```
 
 Install correct multitouch driver for 7" inch raspberry pi screen
