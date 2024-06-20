@@ -3,8 +3,6 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 from core.Interface import *
-from Interfaces.Camera import PiCamera
-import multiprocessing as mp
 
 
 class RPPorts(Interface):
@@ -137,11 +135,6 @@ class RPPorts(Interface):
         if self.ts:
             self.ts.stop()
 
-    def release(self):
-        if self.interface.camera:
-            if self.interface.camera.recording.is_set(): self.interface.camera.stop_rec()
-            self.interface.camera_Process.join()
-
     def in_position(self, port=0):
         """Determine if the specified port is in position and return the position data.
 
@@ -180,7 +173,7 @@ class RPPorts(Interface):
         so call _position_change to reset it to the correct value
 
         Returns:
-            bool: True if all proximity ports are not acrtivated
+            bool: True if all proximity ports are not activated
         """
         port = self._get_position()
         # port=0 means that no proximity port is activated
