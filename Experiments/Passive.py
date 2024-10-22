@@ -55,14 +55,13 @@ class Trial(Experiment):
     def next(self):
         if self.is_stopped():
             return 'Exit'
-        elif not self.stim.isrunning:     # timed out
+        elif not self.stim.in_operation:     # timed out
             return 'InterTrial'
         else:
             return 'Trial'
 
     def exit(self):
         self.stim.stop()
-        self.logger.ping()
 
 
 class InterTrial(Experiment):

@@ -25,8 +25,7 @@ class Experiment(State, ExperimentClass):
 
     def entry(self):  # updates stateMachine from Database entry - override for timing critical transitions
         self.logger.curr_state = self.name()
-        if self.logger.manual_run: print(self.name())
-        self.start_time = self.logger.logger_timer.elapsed_time()
+        self.start_time = self.logger.log('Trial.StateOnset', {'state': self.name()})
         self.resp_ready = False
         self.state_timer.start()
 
@@ -50,7 +49,6 @@ class Trial(Experiment):
 
     def run(self):
         time.sleep(.01)
-        self.logger.ping()
         self.stim.present()  # Start Stimulus
         self.response = self.beh.get_response(self.start_time)
 
@@ -84,7 +82,7 @@ class Reward(Experiment):
 
 class InterTrial(Experiment):
     def run(self):
-        if self.beh.is_licking() and self.params.get('noresponse_intertrial'):
+        if self.beh.is_licking() and self.curr_cond['noresponse_intertrial']:
             self.state_timer.start()
 
     def next(self):
@@ -109,7 +107,6 @@ class Offtime(Experiment):
     def run(self):
         if self.logger.setup_status not in ['sleeping', 'wakeup'] and self.beh.is_sleep_time():
             self.logger.update_setup_info({'status': 'sleeping'})
-        self.logger.ping()
         time.sleep(1)
 
     def next(self):

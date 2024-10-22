@@ -1,12 +1,16 @@
 import itertools
+import time
+from dataclasses import dataclass, field
 
+import datajoint as dj
 import matplotlib.pyplot as plt
-
-from core.Logger import *
-from utils.helper_functions import generate_conf_list
-from dataclasses import dataclass, field, fields
-from sklearn.metrics import roc_auc_score
+import numpy as np
 from scipy import stats
+from sklearn.metrics import roc_auc_score
+
+from core.Logger import behavior, experiment, mice, stimulus
+from utils.helper_functions import factorize, generate_conf_list, make_hash
+from utils.Timer import Timer
 
 
 class State:
@@ -37,7 +41,7 @@ class ExperimentClass:
     """  Parent Experiment """
     curr_state, curr_trial, total_reward, cur_block, flip_count, states, stim, sync = '', 0, 0, 0, 0, dict(), False, False
     un_choices, blocks, iter, curr_cond, block_h, stims, response, resp_ready = [], [], [], dict(), [], dict(), [], False
-    required_fields, default_key, conditions, cond_tables, quit, running, cur_block_sz = [], dict(), [], [], False, False, 0
+    required_fields, default_key, conditions, cond_tables, quit, in_operation, cur_block_sz = [], dict(), [], [], False, False, 0
 
     # move from State to State using a template method.
     class StateMachine:
@@ -61,7 +65,7 @@ class ExperimentClass:
             self.exitState.run()
 
     def setup(self, logger, BehaviorClass, session_params):
-        self.running = False
+        self.in_operation = False
         self.conditions, self.iter, self.quit, self.curr_cond, self.block_h, self.stims, self.curr_trial, self.cur_block_sz = [], [], False, dict(), [], dict(),0, 0
         if "setup_conf_idx" not in self.default_key: self.default_key["setup_conf_idx"] = 0
         self.params = {**self.default_key, **session_params}
@@ -79,26 +83,25 @@ class ExperimentClass:
         for state in self.__class__.__subclasses__():  # Initialize states
             states.update({state().__class__.__name__: state(self)})
         state_control = self.StateMachine(states)
-        self.interface.set_running_state(True)
+        self.interface.set_operation_status(True)
         state_control.run()
 
     def stop(self):
         self.stim.exit()
         self.interface.release()
         self.beh.exit()
-        self.logger.ping(0)
         if self.sync:
             while self.interface.is_recording():
                 print('Waiting for recording to end...')
                 time.sleep(1)
         self.logger.closeDatasets()
-        self.running = False
+        self.in_operation = False
 
     def is_stopped(self):
         self.quit = self.quit or self.logger.setup_status in ['stop', 'exit']
         if self.quit and self.logger.setup_status not in ['stop', 'exit']:
             self.logger.update_setup_info({'status': 'stop'})
-        if self.quit: self.running = False
+        if self.quit: self.in_operation = False
         return self.quit
 
     def make_conditions(self, stim_class, conditions, stim_periods=None):
@@ -163,26 +166,25 @@ class ExperimentClass:
         self.logger.update_trial_idx(self.curr_trial)
         self.trial_start = self.logger.logger_timer.elapsed_time()
         self.logger.log('Trial', dict(cond_hash=self.curr_cond['cond_hash'], time=self.trial_start), priority=3)
-        if not self.running:
-            self.running = True
+        if not self.in_operation:
+            self.in_operation = True
 
     def name(self): return type(self).__name__
 
     def log_conditions(self, conditions, condition_tables=['Condition'], schema='experiment', hsh='cond_hash', priority=2):
         fields_key, hash_dict = list(), dict()
         for ctable in condition_tables:
-            table = rgetattr(eval(schema), ctable)
-            fields_key += list(table().heading.names)
+            fields_key += list(self.logger.get_table_keys(schema, ctable))
         for cond in conditions:
             insert_priority = priority
             key = {sel_key: cond[sel_key] for sel_key in fields_key if sel_key != hsh and sel_key in cond}  # find all dependant fields and generate hash
             cond.update({hsh: make_hash(key)})
             hash_dict[cond[hsh]] = cond[hsh]
             for ctable in condition_tables:  # insert dependant condition tables
-                core = [field for field in rgetattr(eval(schema), ctable).primary_key if field != hsh]
-                fields = [field for field in rgetattr(eval(schema), ctable).heading.names]
+                core = [field for field in self.logger.get_table_keys(schema, ctable, key_type='primary') if field != hsh]
+                fields = [field for field in self.logger.get_table_keys(schema, ctable)]
                 if not np.all([np.any(np.array(k) == list(cond.keys())) for k in fields]):
-                    #if self.logger.manual_run: print('skipping ', ctable)
+                    if self.logger.manual_run: print('skipping ', ctable)
                     continue  # only insert complete tuples
                 if core and hasattr(cond[core[0]], '__iter__'):
                     for idx, pcond in enumerate(cond[core[0]]):
