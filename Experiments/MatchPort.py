@@ -8,17 +8,23 @@ class Condition(dj.Manual):
         # 2AFC experiment conditions
         -> Condition
         ---
-        trial_selection='staircase' : enum('fixed','random','staircase','biased') 
         max_reward=3000             : smallint
         min_reward=500              : smallint
+        hydrate_delay=0             : int # delay hydration in minutes
+        
+        trial_selection='staircase' : enum('fixed','block','random','staircase', 'biased') 
+        difficulty                  : int   
         bias_window=5               : smallint
         staircase_window=20         : smallint
         stair_up=0.7                : float
         stair_down=0.55             : float
         noresponse_intertrial=1     : tinyint(1)
         incremental_punishment=1    : tinyint(1)
+        next_up=0                   : tinyint
+        next_down=0                 : tinyint
+        metric='accuracy'           : enum('accuracy','dprime') 
+        antibias=1                  : tinyint(1)
         
-        difficulty                  : int   
         init_ready                  : int
         trial_ready                 : int
         intertrial_duration         : int
@@ -35,12 +41,7 @@ class Experiment(State, ExperimentClass):
     default_key = {'trial_selection': 'staircase',
                    'max_reward': 3000,
                    'min_reward': 500,
-                   'bias_window': 5,
-                   'staircase_window': 20,
-                   'stair_up': 0.7,
-                   'stair_down': 0.55,
-                   'noresponse_intertrial': True,
-                   'incremental_punishment': True,
+                   'hydrate_delay': 0,
 
                    'init_ready': 0,
                    'trial_ready': 0,
@@ -79,9 +80,12 @@ class PreTrial(Experiment):
             self.resp_ready = True
 
     def next(self):
+        is_sleep_time = self.beh.is_sleep_time()
         if self.is_stopped():
             return 'Exit'
-        elif self.beh.is_sleep_time():
+        elif is_sleep_time and not self.beh.is_hydrated(self.params['min_reward']) and self.curr_trial > 1:
+            return 'Hydrate'
+        elif is_sleep_time:
             return 'Offtime'
         elif self.resp_ready:
             return 'Trial'
@@ -97,7 +101,6 @@ class Trial(Experiment):
 
     def run(self):
         self.stim.present()  # Start Stimulus
-        self.logger.ping()
         self.response = self.beh.get_response(self.start_time)
         if self.beh.is_ready(self.stim.curr_cond['trial_ready'], self.start_time) and not self.resp_ready:
             self.resp_ready = True
@@ -119,7 +122,6 @@ class Trial(Experiment):
 
     def exit(self):
         self.stim.stop()  # stop stimulus when timeout
-        self.logger.ping()
 
 
 class Abort(Experiment):
@@ -182,7 +184,7 @@ class Punish(Experiment):
 
 class InterTrial(Experiment):        
     def run(self):
-        if self.beh.is_licking() and self.params.get('noresponse_intertrial'):
+        if self.beh.is_licking() and self.curr_cond['noresponse_intertrial']:
             self.state_timer.start()
 
     def next(self):
@@ -192,7 +194,7 @@ class InterTrial(Experiment):
             return 'Hydrate'
         elif self.beh.is_sleep_time() or self.beh.is_hydrated():
             return 'Offtime'
-        elif self.state_timer.elapsed_time() >= self.stim.curr_cond['intertrial_duration'] and self.beh.is_off_proximity():
+        elif self.state_timer.elapsed_time() >= self.stim.curr_cond['intertrial_duration']:
             return 'PreTrial'
         else:
             return 'InterTrial'
@@ -203,10 +205,10 @@ class InterTrial(Experiment):
 
 class Hydrate(Experiment):
     def run(self):
-        if self.beh.get_response():
+        if self.beh.get_response() and self.state_timer.elapsed_time() > self.params['hydrate_delay']*60*1000:
+            self.stim.ready_stim()
             self.beh.reward()
             time.sleep(1)
-        self.logger.ping()
 
     def next(self):
         if self.is_stopped():  # if wake up then update session
@@ -221,12 +223,11 @@ class Offtime(Experiment):
     def entry(self):
         super().entry()
         self.stim.fill([0, 0, 0])
-        self.release()
+        self.interface.release()
 
     def run(self):
         if self.logger.setup_status not in ['sleeping', 'wakeup'] and self.beh.is_sleep_time():
             self.logger.update_setup_info({'status': 'sleeping'})
-        self.logger.ping()
         time.sleep(1)
 
     def next(self):

@@ -1,10 +1,10 @@
-from time import sleep
-import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+from time import sleep
+
+import numpy as np
+
 from core.Interface import *
-from Interfaces.Camera import PiCamera
-import multiprocessing as mp
 
 
 class RPPorts(Interface):
@@ -15,12 +15,12 @@ class RPPorts(Interface):
                 'Sound': {1: 13},
                 'Sync': {'in': 21, 'rec': 26, 'out': 16},
                 'Opto': 19,
-                'Running': 20}
+                'Status': 20}
 
     def __init__(self, **kwargs):
         super(RPPorts, self).__init__(**kwargs)
-        from RPi import GPIO
         import pigpio
+        from RPi import GPIO
         self.GPIO = GPIO
         self.GPIO.setmode(self.GPIO.BCM)
         self.Pulser = pigpio.pi()
@@ -53,11 +53,12 @@ class RPPorts(Interface):
         if 'Liquid' in self.channels:
             for channel in self.channels['Liquid']:
                 self.Pulser.set_mode(self.channels['Liquid'][channel], pigpio.OUTPUT)
+                self.Pulser.set_pull_up_down(self.channels['Liquid'][channel], pigpio.PUD_DOWN)
         if 'Sound' in self.channels:
             for channel in self.channels['Sound']:
                 self.Pulser.set_mode(self.channels['Sound'][channel], pigpio.OUTPUT)
-        if 'Running' in self.channels:
-            self.GPIO.setup(self.channels['Running'], self.GPIO.OUT, initial=self.GPIO.LOW)
+        if 'Status' in self.channels:
+            self.GPIO.setup(self.channels['Status'], self.GPIO.OUT, initial=self.GPIO.LOW)
         if 'Sync' in self.channels and 'out' in self.channels['Sync']:
             self.GPIO.setup(self.channels['Sync']['out'], self.GPIO.OUT, initial=self.GPIO.LOW)
 
@@ -104,12 +105,12 @@ class RPPorts(Interface):
             self.ts = False
             print('Cannot create a touch exit!')
 
-    def set_running_state(self, running_state):
+    def set_operation_status(self, operation_status):
         if self.exp.sync:
             while not self.is_recording():
                 print('Waiting for recording to start...')
                 time.sleep(1)
-        self.GPIO.output(self.channels['Running'], running_state)
+        self.GPIO.output(self.channels['Status'], operation_status)
 
     def is_recording(self):
         if self.exp.sync:
@@ -118,7 +119,7 @@ class RPPorts(Interface):
             return False
 
     def cleanup(self):
-        self.set_running_state(False)
+        self.set_operation_status(False)
         self.Pulser.wave_clear()
         self.Pulser.stop()
         if self.callbacks:
@@ -136,11 +137,6 @@ class RPPorts(Interface):
             self.closeDatasets()
         if self.ts:
             self.ts.stop()
-
-    def release(self):
-        if self.interface.camera:
-            if self.interface.camera.recording.is_set(): self.interface.camera.stop_rec()
-            self.interface.camera_Process.join()
 
     def in_position(self, port=0):
         """Determine if the specified port is in position and return the position data.
@@ -180,7 +176,7 @@ class RPPorts(Interface):
         so call _position_change to reset it to the correct value
 
         Returns:
-            bool: True if all proximity ports are not acrtivated
+            bool: True if all proximity ports are not activated
         """
         port = self._get_position()
         # port=0 means that no proximity port is activated

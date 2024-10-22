@@ -1,6 +1,13 @@
-from core.Experiment import *
 import os
-from utils.Presenter import *
+
+import datajoint as dj
+import numpy as np
+
+# import experiment needs in definition of Configuration and Trial tables
+from core.Logger import experiment, stimulus
+from utils.helper_functions import DictStruct
+from utils.Presenter import Presenter
+from utils.Timer import Timer
 
 
 @stimulus.schema
@@ -64,7 +71,7 @@ class Stimulus:
     """ This class handles the stimulus presentation use function overrides for each stimulus class """
 
     cond_tables, required_fields, default_key, curr_cond, conditions, timer = [], [], dict(), dict(), [], Timer()
-    period, isrunning, flip_count, photodiode, rec_fliptimes = 'Trial', False, 0, False, False
+    period, in_operation, flip_count, photodiode, rec_fliptimes = 'Trial', False, 0, False, False
     fill_colors = DictStruct({'start': [], 'ready': [], 'reward': [], 'punish': [], 'background': (0, 0, 0)})
 
     def init(self, exp):
@@ -74,7 +81,7 @@ class Stimulus:
         screen_properties = self.logger.get(table='SetupConfiguration.Screen', key=self.exp.params, as_dict=True)
         self.monitor = DictStruct(screen_properties[0])
         if self.logger.is_pi:
-            cmd = 'echo %d > /sys/class/backlight/10-0045/brightness' % self.monitor.intensity
+            cmd = 'echo %d > /sys/class/backlight/rpi_backlight/brightness' % self.monitor.intensity
             os.system(cmd)
             exp.interface.setup_touch_exit()
 
@@ -90,7 +97,7 @@ class Stimulus:
 
     def start(self):
         """start stimulus"""
-        self.isrunning = True
+        self.in_operation = True
         self.log_start()
         self.timer.start()
 
@@ -108,7 +115,7 @@ class Stimulus:
         """stop stimulus"""
         self.fill()
         self.log_stop()
-        self.isrunning = False
+        self.in_operation = False
 
     def exit(self):
         """exit stimulus stuff"""
@@ -151,3 +158,6 @@ class Stimulus:
                                        condition_tables=['StimCondition'] + self.cond_tables)
         self.conditions += conditions
         return conditions
+
+    def name(self):
+        return type(self).__name__

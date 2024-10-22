@@ -1,7 +1,7 @@
 # Orientation discrimination experiment
+from Behaviors.MultiPort import *
 from Experiments.MatchPort import *
 from Stimuli.Grating import *
-from Behaviors.MultiPort import *
 
 # define session parameters
 session_params = {
@@ -26,6 +26,7 @@ key = {
     'flatness_correction': 1,     # adjustment of spatiotemporal frequencies based on animal distance
     'duration'           : 5000,
     'difficulty'         : 1,
+    'timeout_duration'   : 1000,
     'trial_duration'     : 5000,
     'intertrial_duration': 0,
     'init_duration'      : 0,
@@ -33,18 +34,21 @@ key = {
     'reward_amount'      : 8
 }
 
+repeat_n = 1
 conditions = []
+
 ports = {1: 0,
          2: 90}
 
 Grating_Stimuli = Grating() #if session_params['setup_conf_idx'] ==0 else GratingOld()
 Grating_Stimuli.fill_colors.ready = []
-for port, theta in ports.items():
-    conditions += exp.make_conditions(stim_class=Grating_Stimuli,
-                                      conditions={**key,
-                                                  'theta': theta,
-                                                  'reward_port': port,
-                                                  'response_port': port})
+block = exp.Block(difficulty=1, next_up=1, next_down=1, trial_selection='staircase', metric='dprime', stair_up=1, stair_down=0.5)
+for port in ports:
+    conditions += exp.make_conditions(stim_class=Grating_Stimuli, conditions={**block.dict(),
+                                                                              **key,
+                                                                              'theta'        : ports[port],
+                                                                              'reward_port'  : port,
+                                                                              'response_port': port})
 
 # run experiments
 exp.push_conditions(conditions)

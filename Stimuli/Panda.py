@@ -1,13 +1,18 @@
-from core.Stimulus import *
 import os
 import time
+
+import datajoint as dj
 import numpy as np
-from direct.showbase.ShowBase import ShowBase
-from direct.showbase.Loader import Loader
-from direct.task import Task
 import panda3d.core as core
-from utils.Timer import *
-from panda3d.core import NodePath, CardMaker, TextureStage, ClockObject
+from direct.showbase.Loader import Loader
+from direct.showbase.ShowBase import ShowBase
+from direct.task import Task
+from panda3d.core import CardMaker, ClockObject, NodePath, TextureStage
+
+from core.Logger import stimulus
+from core.Stimulus import StimCondition, Stimulus # import StimCondition need for the Panda class definition
+from utils.helper_functions import iterable
+from utils.Timer import Timer
 
 
 @stimulus.schema
@@ -48,7 +53,8 @@ class Panda(Stimulus, dj.Manual):
         obj_yaw               : blob
         obj_delay             : int
         obj_dur               : int
-        obj_occluder           : int
+        obj_occluder          : int
+        perspective           : int
         """
 
     class Environment(dj.Part):
@@ -93,7 +99,8 @@ class Panda(Stimulus, dj.Manual):
                    'obj_tilt': 0,
                    'obj_yaw': 0,
                    'obj_delay': 0,
-                   'obj_occluder': 0}
+                   'obj_occluder': 0,
+                   'perspective': 0}
 
     object_files, is_recording = dict(), False
 
@@ -123,6 +130,8 @@ class Panda(Stimulus, dj.Manual):
 
         self.fill_colors.background_color = (0, 0, 0)
 
+    def name(self):
+        return 'Panda'
 
     def setup(self):
         ShowBase.__init__(self, fStartDirect=self.fStartDirect, windowType=self.windowType)
@@ -139,7 +148,7 @@ class Panda(Stimulus, dj.Manual):
         self.set_background_color(0, 0, 0)
 
         self.disableMouse()
-        self.isrunning = False
+        self.in_operation = False
         self.present_movie = False
 
         # Create Ambient Light
@@ -198,9 +207,9 @@ class Panda(Stimulus, dj.Manual):
     def start(self):
         if self.flag_no_stim: return
         self.fill()
-        if not self.isrunning:
+        if not self.in_operation:
             self.timer.start()
-            self.isrunning = True
+            self.in_operation = True
 
         self.log_start()
         if self.present_movie: self.mov_texture.play()
@@ -212,7 +221,7 @@ class Panda(Stimulus, dj.Manual):
     def present(self):
         self.flip()
         if 'obj_dur' in self.curr_cond and self.curr_cond['obj_dur'] < self.timer.elapsed_time():
-            self.isrunning = False
+            self.in_operation = False
 
     def flip(self, n=1):
         for i in range(0, n):
@@ -233,7 +242,7 @@ class Panda(Stimulus, dj.Manual):
         self.stop_recording()
         self.flip(2) # clear double buffer
         self.log_stop()
-        self.isrunning = False
+        self.in_operation = False
 
     def fill(self, color=None):
         if not color: color = self.curr_cond['background_color']
@@ -262,7 +271,8 @@ class Panda(Stimulus, dj.Manual):
             self.taskMgr.remove(self.record_task)
 
     def create_movies(self):
-        import glob, os
+        import glob
+        import os
         print('creating movies..')
         for itrial in range(1, self.exp.curr_trial + 1):
             name = self.record_path + 'trial' + str(itrial) + '_frame_*.png'
@@ -270,7 +280,7 @@ class Panda(Stimulus, dj.Manual):
                           str(self.exp.logger.trial_key['session']) + '_trial' + str(itrial) + '.mov'
             print(output_name)
             os.system("ffmpeg -framerate " + str(self.fps) + " -pattern_type glob -i " + f'"{name}"'
-                      + " -loglevel quiet -c:v libx264 -pix_fmt yuv420p -crf 5 " + f'"{output_name}"')
+                      + " -loglevel quiet -c:v libx264 -pix_fmt gray -crf 5 " + f'"{output_name}"')
 
         for f in glob.glob(self.record_path + '*.png'):
             os.remove(f)
@@ -295,7 +305,7 @@ class Panda(Stimulus, dj.Manual):
                     clip[0].tofile(filename)
             if not 'obj_id' in cond: continue
             for obj_id in iterable(cond['obj_id']):
-                object_info = (Objects() & ('obj_id=%d' % obj_id)).fetch1()
+                object_info = self.exp.logger.get(schema='stimulus', table='Objects', key={'obj_id': obj_id})[0]
                 filename = self.path + object_info['file_name']
                 self.object_files[obj_id] = filename
                 if not os.path.isfile(filename): print('Saving %s' % filename); object_info['object'].tofile(filename)

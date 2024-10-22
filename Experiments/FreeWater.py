@@ -8,26 +8,24 @@ class Condition(dj.Manual):
         # Passive experiment conditions
         -> Condition
         ---
-        trial_selection='staircase': enum('fixed','random','staircase','biased') 
         max_reward=3000            : smallint
-        bias_window=5              : smallint
         noresponse_intertrial=1    : tinyint(1)
+        trial_selection='staircase' : enum('fixed','block','random','staircase','biased')     
         intertrial_duration        : int
         """
 
 
 class Experiment(State, ExperimentClass):
     cond_tables = ['FreeWater']
-    default_key = {'trial_selection'       : 'biased',
+    required_fields = ['staircase_window'] # Needs to change in the new version
+    default_key = {'trial_selection'       : 'fixed',
                    'max_reward'            : 6000,
-                   'bias_window'           : 5,
                    'noresponse_intertrial' : True,
                    'intertrial_duration'   : 1000}
 
     def entry(self):  # updates stateMachine from Database entry - override for timing critical transitions
         self.logger.curr_state = self.name()
-        print(self.name())
-        self.start_time = self.logger.logger_timer.elapsed_time()
+        self.start_time = self.logger.log('Trial.StateOnset', {'state': self.name()})
         self.resp_ready = False
         self.state_timer.start()
 
@@ -51,7 +49,6 @@ class Trial(Experiment):
 
     def run(self):
         time.sleep(.01)
-        self.logger.ping()
         self.stim.present()  # Start Stimulus
         self.response = self.beh.get_response(self.start_time)
 
@@ -85,7 +82,7 @@ class Reward(Experiment):
 
 class InterTrial(Experiment):
     def run(self):
-        if self.beh.is_licking() and self.params.get('noresponse_intertrial'):
+        if self.beh.is_licking() and self.curr_cond['noresponse_intertrial']:
             self.state_timer.start()
 
     def next(self):
@@ -110,7 +107,6 @@ class Offtime(Experiment):
     def run(self):
         if self.logger.setup_status not in ['sleeping', 'wakeup'] and self.beh.is_sleep_time():
             self.logger.update_setup_info({'status': 'sleeping'})
-        self.logger.ping()
         time.sleep(1)
 
     def next(self):
